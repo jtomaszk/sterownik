@@ -15,8 +15,8 @@ const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
 
 void setup() {
   Serial.begin(57600);
-  pinMode(relay, OUTPUT);
-  digitalWrite(relay, HIGH);
+//  pinMode(relay, OUTPUT);
+//  digitalWrite(relay, HIGH);
   
   printf_begin();
   printf("\n\rRF24/examples/GettingStarted/\n\r");
@@ -24,8 +24,9 @@ void setup() {
 
   // Setup and configure rf radio
   radio.begin();                          // Start up the radio
-
-  radio.setDataRate(RF24_250KBPS);
+//radio.setPayloadSize(8);
+//  radio.setDataRate(RF24_250KBPS);
+//  radio.setAutoAck(1);     
 /*
   
   radio.setAutoAck(1);                    // Ensure autoACK is enabled
@@ -39,12 +40,15 @@ void setup() {
 */
 
     radio.setRetries( 15, 15);
-    radio.setChannel(0x4c);
-    radio.setPALevel(RF24_PA_MAX);
-    radio.setPALevel(RF24_PA_MAX);
-
+    radio.setPayloadSize(8);
+    
     radio.openWritingPipe(pipes[0]);
     radio.openReadingPipe(1,pipes[1]);
+    
+    
+//    radio.setChannel(0x4c);
+//    radio.setPALevel(RF24_PA_MAX);
+
     radio.startListening();
     radio.printDetails();
 
@@ -55,42 +59,39 @@ void loop() {
 
     radio.stopListening();                                    // First, stop listening so we can talk.
 
-
-    printf("Now sending \n\r");
-
-    unsigned long time = micros();                             // Take the time, and send it.  This will block until complete
+    unsigned long time = millis();
+    printf("Now sending %lu...",time);
+    bool ok = radio.write( &time, sizeof(unsigned long) );
     
-    const int n = snprintf(NULL, 0, "%lu", time);
-    char buf[n+1];
-    int c = snprintf(buf, n+1, "%lu", time);
-
-    if (!radio.write( &buf, sizeof(buf) )) {
+    radio.startListening();  
+    
+    if (!ok) {
       printf("failed.\n\r");
-    }
-    printf("2\n\r");
-    radio.startListening();                                    // Now, continue listening
-
-    unsigned long started_waiting_at = micros();               // Set up a timeout period, get the current microseconds
-    boolean timeout = false;                                   // Set up a variable to indicate if a response was received or not
-
-    while ( ! radio.available() ) {
-      //printf("..\n\r");      // While nothing is received
-      if (micros() - started_waiting_at > 500000 ) {           // If waited longer than 200ms, indicate timeout and exit while loop
-        timeout = true;
-        break;
+    } else {
+      printf("ok...\n\r");
+                                        // Now, continue listening
+  
+      unsigned long started_waiting_at = micros();               // Set up a timeout period, get the current microseconds
+      boolean timeout = false;                                   // Set up a variable to indicate if a response was received or not
+  
+      while ( ! radio.available() ) {
+        //printf("..\n\r");      // While nothing is received
+        if (micros() - started_waiting_at > 500000 ) {           // If waited longer than 200ms, indicate timeout and exit while loop
+          timeout = true;
+          break;
+        }
+      }
+  
+      if ( timeout ) {                                            // Describe the results
+        printf("Failed, response timed out.\n\r");
+      } else {
+        unsigned long got_time;                                 // Grab the response, compare, and send to debugging spew
+        radio.read( &got_time, sizeof(unsigned long) );
+  
+        // Spew it
+        printf("Sent %lu, Got response %lu, round-trip delay: %lu microseconds\n\r", time, got_time, micros() - got_time);
       }
     }
-
-    if ( timeout ) {                                            // Describe the results
-      printf("Failed, response timed out.\n\r");
-    } else {
-      unsigned long got_time;                                 // Grab the response, compare, and send to debugging spew
-      radio.read( &got_time, sizeof(unsigned long) );
-
-      // Spew it
-      printf("Sent %lu, Got response %lu, round-trip delay: %lu microseconds\n\r", time, got_time, micros() - got_time);
-    }
-
     // Try again 1s later
     delay(1000);
  
