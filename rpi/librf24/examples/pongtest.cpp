@@ -60,6 +60,35 @@ const char* role_friendly_name[] = { "invalid", "Ping out", "Pong back"};
 // The role of the current running sketch
 role_e role;
 
+
+////////////////////////////////////
+
+//using namespace std;
+//RF24 radio("/dev/spidev0.0",8000000 , 25);  //spi device, speed and CSN,only CSN is NEEDED in RPI
+//const int role_pin = 7;
+//const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
+
+
+/*
+void setup(void){
+    //Prepare the radio module
+    printf("\nPreparing interface\n");
+    radio.begin();
+    radio.setRetries( 15, 15);
+    radio.setChannel(0x4c);
+    radio.setPALevel(RF24_PA_MAX);
+    radio.setPALevel(RF24_PA_MAX);
+
+    radio.openWritingPipe(pipes[0]);
+    radio.openReadingPipe(1,pipes[1]);
+    radio.startListening();
+    radio.printDetails();
+
+}
+*/
+////////////////////////////////////
+
+
 void setup(void)
 {
   //
@@ -98,8 +127,11 @@ void setup(void)
   // optionally, reduce the payload size.  seems to
   // improve reliability
 //  radio.setPayloadSize(8);
- radio.setChannel(0x4c);
-     radio.setPALevel(RF24_PA_LOW);
+
+    radio.setDataRate(RF24_250KBPS);
+    radio.setChannel(0x4c);
+//     radio.setPALevel(RF24_PA_LOW);
+     radio.setPALevel(RF24_PA_MAX);
 
   //
   // Open pipes to other nodes for communication
@@ -110,16 +142,16 @@ void setup(void)
   // Open 'our' pipe for writing
   // Open the 'other' pipe for reading, in position #1 (we can have up to 5 pipes open for reading)
 
-  if ( role == role_ping_out )
-  {
-    radio.openWritingPipe(pipes[0]);
-    radio.openReadingPipe(1,pipes[1]);
-  }
-  else
-  {
+ // if ( role == role_ping_out )
+  //{
+   // radio.openWritingPipe(pipes[0]);
+   // radio.openReadingPipe(1,pipes[1]);
+ // }
+ // else
+ // {
     radio.openWritingPipe(pipes[1]);
     radio.openReadingPipe(1,pipes[0]);
-  }
+ // }
 
   //
   // Start listening
