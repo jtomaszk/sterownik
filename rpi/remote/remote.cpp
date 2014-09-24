@@ -1,116 +1,167 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <string>
-#include <getopt.h>
 #include <cstdlib>
 #include <iostream>
-#include "RF24.h"
+#include <sstream>
+#include <string>
+#include <RF24/RF24.h>
 
 using namespace std;
-RF24 radio("/dev/spidev0.0",8000000 , 25);  //spi device, speed and CSN,only CSN is NEEDED in RPI
-const int role_pin = 7;
-const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
+//
+// Hardware configuration
+//
+
+// CE Pin, CSN Pin, SPI Speed
+
+// Setup for GPIO 22 CE and CE1 CSN with SPI Speed @ 1Mhz
+//RF24 radio(RPI_V2_GPIO_P1_22, RPI_V2_GPIO_P1_26, BCM2835_SPI_SPEED_1MHZ);
+
+// Setup for GPIO 22 CE and CE0 CSN with SPI Speed @ 4Mhz
+//RF24 radio(RPI_V2_GPIO_P1_15, BCM2835_SPI_CS0, BCM2835_SPI_SPEED_4MHZ);
+
+// Setup for GPIO 22 CE and CE0 CSN with SPI Speed @ 8Mhz
+//RF24 radio(RPI_V2_GPIO_P1_25, BCM2835_SPI_CS0, BCM2835_SPI_SPEED_1MHZ);
+
+RF24 radio(RPI_V2_GPIO_P1_15,BCM2835_SPI_CS0, BCM2835_SPI_SPEED_1MHZ);
+
+// Radio pipe addresses for the 2 nodes to communicate.
+const uint8_t pipes[][6] = {"1Node","2Node"};
+//const uint64_t pipes[2] = { 0xABCDABCD71LL, 0x544d52687CLL };
 
 
+int main(int argc, char** argv){
 
-void setup(void){
-    //Prepare the radio module
-    printf("\nPreparing interface\n");
-    radio.begin();
+  bool role_ping_out = true, role_pong_back = false;
+  bool role = role_pong_back;
 
-    radio.setDataRate(RF24_250KBPS);
+  // Print preamble:
+  printf("RF24/examples/pingtest/\n");
 
-    radio.setRetries( 15, 15);
-    radio.setChannel(0x4c);
-    radio.setPALevel(RF24_PA_MAX);
-    radio.setPALevel(RF24_PA_MAX);
+  // Setup and configure rf radio
+  radio.begin();
 
-    radio.openWritingPipe(pipes[0]);
-    radio.openReadingPipe(1,pipes[1]);
-    radio.startListening();
-    radio.printDetails();
+  // optionally, increase the delay between retries & # of retries
+  radio.setRetries(15,15);
 
-}
+ // Dump the configuration of the rf unit for debugging
+  radio.printDetails();
 
-bool switchLight(int action){
-    //This function send a message, the 'action', to the arduino and wait for answer
-    //Returns true if ACK package is received
-    //Stop listening
-    radio.stopListening();
-    unsigned long message = action;
-    printf("Now sending %lu...", message);
 
-    //Send the message
-    bool ok = radio.write( &message, sizeof(unsigned long) );
-    if (ok)
-        printf("ok...");
-    else
-        printf("failed.\n\r");
-    //Listen for ACK
-    radio.startListening();
-    //Let's take the time while we listen
-    unsigned long started_waiting_at = __millis();
-    bool timeout = false;
-    while ( ! radio.available() && ! timeout ) {
-        __msleep(10);
-        if (__millis() - started_waiting_at > 1000 )
-            timeout = true;
+/********* Role chooser ***********/
+
+  printf("\n ************ Role Setup ***********\n");
+  string input = "";
+  char myChar = {0};
+  cout << "Choose a role: Enter 0 for pong_back, 1 for ping_out (CTRL+C to exit) \n>";
+  getline(cin,input);
+
+  if(input.length() == 1) {
+        myChar = input[0];
+        if(myChar == '0'){
+                cout << "Role: Pong Back, awaiting transmission " << endl << endl;
+        }else{  cout << "Role: Ping Out, starting transmission " << endl << endl;
+                role = role_ping_out;
+        }
+  }
+/***********************************/
+  // This simple sketch opens two pipes for these two nodes to communicate
+  // back and forth.
+
+    if ( role == role_ping_out )    {
+      radio.openWritingPipe(pipes[0]);
+      radio.openReadingPipe(1,pipes[1]);
+    } else {
+      radio.openWritingPipe(pipes[1]);
+      radio.openReadingPipe(1,pipes[0]);
+      radio.startListening();
 
     }
 
-    if( timeout ){
-        //If we waited too long the transmission failed
-            printf("Failed, response timed out.\n\r");
-            return false;
-    }else{
-        //If we received the message in time, let's read it and print it
-        unsigned long got_time;
-        radio.read( &got_time, sizeof(unsigned long) );
-        printf("Got response %lu, round-trip delay: %lu\n\r",got_time,__millis()-got_time);
-        return true;
-    }
+        // forever loop
+        while (1)
+        {
+               if (role == role_ping_out)
+                {
+                        // First, stop listening so we can talk.
+                        radio.stopListening();
 
-}
+                        // Take the time, and send it.  This will block until complete
 
-int main( int argc, char ** argv){
+                        printf("Now sending...\n");
+                        unsigned long time = millis();
 
-        char choice;
-        setup();
-        bool switched = false;
-        int counter = 0;
+                        bool ok = radio.write( &time, sizeof(unsigned long) );
 
-        //Define the options
+                        if (!ok){
+                                printf("failed.\n");
+                        }
+                        // Now, continue listening
+                        radio.startListening();
 
-        while(( choice = getopt( argc, argv, "m:")) != -1){
-
-                if (choice == 'm'){
-
-
-                    printf("\nOpening the gates...\n");
-                    while(switched == false && counter < 5){
-
-                        switched = switchLight(atoi(optarg));
-                        counter ++;
-
-                    }
+                        // Wait here until we get a response, or timeout (250ms)
+                        unsigned long started_waiting_at = millis();
+                        bool timeout = false;
+                        while ( ! radio.available() && ! timeout ) {
+                                if (millis() - started_waiting_at > 200 )
+                                        timeout = true;
+                        }
 
 
-                }else{
-                    // A little help:
-                            printf("\n\rIt's time to make some choices...\n");
-                            printf("\n\rUse -f option: ");
-                            printf("\n[on|On|ON] - will turn the light on.");
-                            printf("\n[Off|*] -  guess what? It will turns the light off.\n ");
-                            printf("\n\rExample: ");
-                            printf("\nsudo ./switch -f on\n");
+                        // Describe the results
+                        if ( timeout )
+                        {
+                                printf("Failed, response timed out.\n");
+                        }
+                        else
+                        {
+                                // Grab the response, compare, and send to debugging spew
+                                unsigned long got_time;
+                                radio.read( &got_time, sizeof(unsigned long) );
+                // Spew it
+                                printf("Got response %lu, round-trip delay: %lu\n",got_time,millis()-got_time);
+                        }
+
+                        // Try again 1s later
+                         delay(1000);
+
+                        //sleep(1);
+
                 }
 
-            //return 0 if everything went good, 2 otherwise
-             if (counter < 5)
-                 return 0;
-             else
-                 return 2;
-     }
+                //
+                // Pong back role.  Receive each packet, dump it out, and send it back
+                //
+
+                if ( role == role_pong_back )
+                {
+
+                        // if there is data ready
+                        //printf("Check available...\n");
+
+                        if ( radio.available() )
+                        {
+                                // Dump the payloads until we've gotten everything
+                                unsigned long got_time;
+
+
+                                // Fetch the payload, and see if this was the last one.
+                                radio.read( &got_time, sizeof(unsigned long) );
+
+                                radio.stopListening();
+
+                                radio.write( &got_time, sizeof(unsigned long) );
+
+                                // Now, resume listening so we catch the next packets.
+                                radio.startListening();
+
+                                // Spew it
+                                printf("Got payload(%d) %lu...\n",sizeof(unsigned long), got_time);
+
+                                delay(925); //Delay after payload responded to, minimize RPi CPU time
+
+                        }
+
+                }
+
+        } // forever loop
+
+  return 0;
 }
