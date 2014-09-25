@@ -134,17 +134,18 @@ int main(int argc, char** argv){
                 {
 
                         // if there is data ready
-                        //printf("Check available...\n");
+                //        printf("Check available...\n");
 
                         if ( radio.available() )
                         {
                                 // Dump the payloads until we've gotten everything
                                 unsigned long got_time;
 
-
+				char msg[255] = "";
                                 // Fetch the payload, and see if this was the last one.
-                                radio.read( &got_time, sizeof(unsigned long) );
-
+				//radio.read( &got_time, sizeof(unsigned long) );
+                                radio.read( msg, 255 );
+				printf("msg=%s\n", msg);
                                 radio.stopListening();
 
                                 radio.write( &got_time, sizeof(unsigned long) );
