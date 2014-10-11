@@ -8,6 +8,7 @@
 #include "printf.h"
 #include "DHT.h"
 #include "string_helper.h"
+#include "sprotocol.h"
 
 DHT dht;
 
