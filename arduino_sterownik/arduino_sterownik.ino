@@ -24,9 +24,9 @@ void setup() {
 
   // Setup and configure rf radio
   radio.begin();                          // Start up the radio
-//radio.setPayloadSize(8);
+radio.enableDynamicPayloads();
 //  radio.setDataRate(RF24_250KBPS);
-//  radio.setAutoAck(1);     
+  radio.setAutoAck(1);     
 /*
   
   radio.setAutoAck(1);                    // Ensure autoACK is enabled
@@ -40,28 +40,45 @@ void setup() {
 */
 
     radio.setRetries( 15, 15);
-    radio.setPayloadSize(8);
+   // radio.setPayloadSize(8);
     
     radio.openWritingPipe(pipes[0]);
     radio.openReadingPipe(1,pipes[1]);
     
     
-//    radio.setChannel(0x4c);
-//    radio.setPALevel(RF24_PA_MAX);
+    radio.setChannel(70);
+    radio.setPALevel(RF24_PA_MAX);
+    radio.setCRCLength(RF24_CRC_8);
 
     radio.startListening();
     radio.printDetails();
 
   printf("setup done \n\r");
 }
-
+uint8_t loopCounter=0;  
 void loop() {
-
+  unsigned long send_time = millis() ;
+  
+  bool timeout=0;
+  while ( radio.available() ) {
+     // Check for timeout and exit the while loop
+      if ( millis() - send_time > 50000 ) {
+          //Serial.println("Timeout!!!");
+          timeout = 1;
+      }
+  }
+  loopCounter ++;
+    if (loopCounter > 6) {
+      
+radio.powerUp();
     radio.stopListening();                                    // First, stop listening so we can talk.
+
+char outBuffer[320]="xxxxxxxxxxxx";
 
     unsigned long time = millis();
     printf("Now sending %lu...",time);
-    bool ok = radio.write( &time, sizeof(unsigned long) );
+//    bool ok = radio.write( &time, sizeof(unsigned long) );
+  bool ok = radio.write( outBuffer, strlen(outBuffer));
     
     radio.startListening();  
     
@@ -94,5 +111,6 @@ void loop() {
     }
     // Try again 1s later
     delay(1000);
- 
+ loopCounter = 0;
+    }
 }
